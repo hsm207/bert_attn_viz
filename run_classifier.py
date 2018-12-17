@@ -355,6 +355,9 @@ class ColaProcessor(DataProcessor):
     return examples
 
 
+
+
+
 def convert_single_example(ex_index, example, label_list, max_seq_length,
                            tokenizer):
   """Converts a single `InputExample` into a single `InputFeatures`."""
@@ -644,13 +647,31 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
     elif mode == tf.estimator.ModeKeys.EVAL:
 
       def metric_fn(per_example_loss, label_ids, logits):
+
         predictions = tf.argmax(logits, axis=-1, output_type=tf.int32)
         accuracy = tf.metrics.accuracy(label_ids, predictions)
         loss = tf.metrics.mean(per_example_loss)
-        return {
+
+        precision = tf.metrics.precision(label_ids, predictions)
+        recall = tf.metrics.recall(label_ids, predictions)
+        fn = tf.metrics.false_negatives(label_ids, predictions)
+        fp = tf.metrics.false_positives(label_ids, predictions)
+        tn = tf.metrics.true_negatives(label_ids, predictions)
+        tp = tf.metrics.true_positives(label_ids, predictions)
+        f1 = tf.contrib.metrics.f1_score(label_ids, predictions)
+
+        # TODO: Check why terminal does not display this order
+        return collections.OrderedDict({
             "eval_accuracy": accuracy,
+            'eval_precision': precision,
+            'eval_recall': recall,
+            'eval_tp': tp,
+            'eval_tn': tn,
+            'eval_fp': fp,
+            'eval_fn': fn,
+            'eval_f1': f1,
             "eval_loss": loss,
-        }
+        })
 
       eval_metrics = (metric_fn, [per_example_loss, label_ids, logits])
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
@@ -659,8 +680,12 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
           eval_metrics=eval_metrics,
           scaffold_fn=scaffold_fn)
     else:
+      preds = {
+          'probabilities': probabilities,
+          'pred_class': tf.argmax(probabilities, axis=1)
+      }
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
-          mode=mode, predictions=probabilities, scaffold_fn=scaffold_fn)
+          mode=mode, predictions=preds, scaffold_fn=scaffold_fn)
     return output_spec
 
   return model_fn
@@ -745,7 +770,7 @@ def main(_):
       "cola": ColaProcessor,
       "mnli": MnliProcessor,
       "mrpc": MrpcProcessor,
-      "xnli": XnliProcessor,
+      "xnli": XnliProcessor
   }
 
   if not FLAGS.do_train and not FLAGS.do_eval and not FLAGS.do_predict:
@@ -817,7 +842,8 @@ def main(_):
       config=run_config,
       train_batch_size=FLAGS.train_batch_size,
       eval_batch_size=FLAGS.eval_batch_size,
-      predict_batch_size=FLAGS.predict_batch_size)
+      predict_batch_size=FLAGS.predict_batch_size,
+      export_to_tpu=False)
 
   if FLAGS.do_train:
     train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
@@ -898,8 +924,9 @@ def main(_):
     with tf.gfile.GFile(output_predict_file, "w") as writer:
       tf.logging.info("***** Predict results *****")
       for prediction in result:
-        output_line = "\t".join(
-            str(class_probability) for class_probability in prediction) + "\n"
+        out = prediction['probabilities'].tolist()
+        out.append(prediction['pred_class'])
+        output_line = "\t".join(str(result) for result in out) + "\n"
         writer.write(output_line)
 
 

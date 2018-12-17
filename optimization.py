@@ -25,7 +25,6 @@ import tensorflow as tf
 def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu):
   """Creates an optimizer training op."""
   global_step = tf.train.get_or_create_global_step()
-
   learning_rate = tf.constant(value=init_lr, shape=[], dtype=tf.float32)
 
   # Implements linear decay of the learning rate.

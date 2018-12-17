@@ -114,3 +114,14 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+*.tfrecords
+tuned_model/*
+tuned_model.zip
+.idea/*
+model.tar.gz
+download_glue_data.py
+.DS_Store
+data/*
+export/*
+model/*
