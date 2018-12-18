@@ -125,3 +125,7 @@ download_glue_data.py
 data/*
 export/*
 model/*
+resources/changed_labels.csv
+resources/sagemaker_predict_with_boto.py
+resources/model_performance.xlsx
+resources/missing_reviews.xlsx
