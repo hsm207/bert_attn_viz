@@ -543,14 +543,22 @@ def _truncate_seq_pair(tokens_a, tokens_b, max_length):
 
 def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
                  labels, num_labels, use_one_hot_embeddings):
-  """Creates a classification model."""
-  model = modeling.BertModel(
-      config=bert_config,
-      is_training=is_training,
-      input_ids=input_ids,
-      input_mask=input_mask,
-      token_type_ids=segment_ids,
-      use_one_hot_embeddings=use_one_hot_embeddings)
+    """Creates a classification model."""
+
+    def extract_attention_weights(tf_graph):
+        num_layers = bert_config.num_hidden_layers
+        attns = [{'layer_%s' % i: tf_graph.get_tensor_by_name('bert/encoder/layer_%s/attention/self/Softmax:0' % i)}
+                 for i in range(num_layers)]
+
+        return attns
+
+    model = modeling.BertModel(
+        config=bert_config,
+        is_training=is_training,
+        input_ids=input_ids,
+        input_mask=input_mask,
+        token_type_ids=segment_ids,
+        use_one_hot_embeddings=use_one_hot_embeddings)
 
   # In the demo, we are doing a simple classification task on the entire
   # segment.
@@ -573,17 +581,18 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
       # I.e., 0.1 dropout
       output_layer = tf.nn.dropout(output_layer, keep_prob=0.9)
 
-    logits = tf.matmul(output_layer, output_weights, transpose_b=True)
-    logits = tf.nn.bias_add(logits, output_bias)
-    probabilities = tf.nn.softmax(logits, axis=-1)
-    log_probs = tf.nn.log_softmax(logits, axis=-1)
+        logits = tf.matmul(output_layer, output_weights, transpose_b=True)
+        logits = tf.nn.bias_add(logits, output_bias)
+        probabilities = tf.nn.softmax(logits, axis=-1)
+        log_probs = tf.nn.log_softmax(logits, axis=-1)
+        attns = extract_attention_weights(tf.get_default_graph())
 
     one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
 
     per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
     loss = tf.reduce_mean(per_example_loss)
 
-    return (loss, per_example_loss, logits, probabilities)
+        return (loss, per_example_loss, logits, probabilities, attns)
 
 
 def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
@@ -673,20 +682,21 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
             "eval_loss": loss,
         })
 
-      eval_metrics = (metric_fn, [per_example_loss, label_ids, logits])
-      output_spec = tf.contrib.tpu.TPUEstimatorSpec(
-          mode=mode,
-          loss=total_loss,
-          eval_metrics=eval_metrics,
-          scaffold_fn=scaffold_fn)
-    else:
-      preds = {
-          'probabilities': probabilities,
-          'pred_class': tf.argmax(probabilities, axis=1)
-      }
-      output_spec = tf.contrib.tpu.TPUEstimatorSpec(
-          mode=mode, predictions=preds, scaffold_fn=scaffold_fn)
-    return output_spec
+            eval_metrics = (metric_fn, [per_example_loss, label_ids, logits])
+            output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+                mode=mode,
+                loss=total_loss,
+                eval_metrics=eval_metrics,
+                scaffold_fn=scaffold_fn)
+        else:
+            preds = {
+                'probabilities': probabilities,
+                'pred_class': tf.argmax(probabilities, axis=1),
+                'attention': attentions[-1].values()[0]
+            }
+            output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+                mode=mode, predictions=preds, scaffold_fn=scaffold_fn)
+        return output_spec
 
   return model_fn
 
