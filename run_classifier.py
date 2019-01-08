@@ -689,11 +689,20 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
                 eval_metrics=eval_metrics,
                 scaffold_fn=scaffold_fn)
         else:
-            preds = {
-                'probabilities': probabilities,
-                'pred_class': tf.argmax(probabilities, axis=1),
-                'attention': attentions[-1].values()[0]
-            }
+            # attn_processor_fn is None when not called from load_bert_model()
+            attn_processor_fn = params.get('attn_processor_fn', None)
+            if attn_processor_fn:
+                assert callable(attn_processor_fn)
+                preds = {
+                    'probabilities': probabilities,
+                    'pred_class': tf.argmax(probabilities, axis=1),
+                    'attention': attn_processor_fn(attentions)
+                }
+            else:
+                preds = {
+                    'probabilities': probabilities,
+                    'pred_class': tf.argmax(probabilities, axis=1)
+                }
             output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode, predictions=preds, scaffold_fn=scaffold_fn)
         return output_spec
