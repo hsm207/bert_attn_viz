@@ -25,6 +25,7 @@ import modeling
 import optimization
 import tokenization
 import tensorflow as tf
+import random
 
 flags = tf.flags
 
@@ -358,6 +359,37 @@ class ColaProcessor(DataProcessor):
 
 
 
+class ImdbProcessor(ColaProcessor):
+    def _create_examples(self, lines, set_type):
+        examples = []
+        for (i, line) in enumerate(lines):
+            # skip headers
+            if i == 0:
+                continue
+
+            guid = "%s-%s" % (set_type, line[0])
+            if set_type == 'test':
+                text_a = tokenization.convert_to_unicode(line[2])
+                # the test set we pass to this processor will also be labeled
+                label = tokenization.convert_to_unicode(line[1])
+            else:
+                text_a = tokenization.convert_to_unicode(line[2])
+                label = tokenization.convert_to_unicode(line[1])
+
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=label)
+            )
+
+        # the training set is sorted such that all the '1's (labels) are arranged one after another followed
+        # by all the '0's.
+        # since the buffer size for the shuffle step is only 100 and batch size is relatively small e.g. 32, the model
+        # ends up being fed with all '1' examples followed by all '0' examples.
+        # shuffling at this stage ensures that each batch has a mix of '1's and '0's.
+        if set_type == 'train':
+            random.shuffle(examples)
+        return examples
+
+
 def convert_single_example(ex_index, example, label_list, max_seq_length,
                            tokenizer):
   """Converts a single `InputExample` into a single `InputFeatures`."""
@@ -560,26 +592,26 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
         token_type_ids=segment_ids,
         use_one_hot_embeddings=use_one_hot_embeddings)
 
-  # In the demo, we are doing a simple classification task on the entire
-  # segment.
-  #
-  # If you want to use the token-level output, use model.get_sequence_output()
-  # instead.
-  output_layer = model.get_pooled_output()
+    # In the demo, we are doing a simple classification task on the entire
+    # segment.
+    #
+    # If you want to use the token-level output, use model.get_sequence_output()
+    # instead.
+    output_layer = model.get_pooled_output()
 
-  hidden_size = output_layer.shape[-1].value
+    hidden_size = output_layer.shape[-1].value
 
-  output_weights = tf.get_variable(
-      "output_weights", [num_labels, hidden_size],
-      initializer=tf.truncated_normal_initializer(stddev=0.02))
+    output_weights = tf.get_variable(
+          "output_weights", [num_labels, hidden_size],
+          initializer=tf.truncated_normal_initializer(stddev=0.02))
 
-  output_bias = tf.get_variable(
-      "output_bias", [num_labels], initializer=tf.zeros_initializer())
+    output_bias = tf.get_variable(
+          "output_bias", [num_labels], initializer=tf.zeros_initializer())
 
-  with tf.variable_scope("loss"):
-    if is_training:
-      # I.e., 0.1 dropout
-      output_layer = tf.nn.dropout(output_layer, keep_prob=0.9)
+    with tf.variable_scope("loss"):
+        if is_training:
+          # I.e., 0.1 dropout
+          output_layer = tf.nn.dropout(output_layer, keep_prob=0.9)
 
         logits = tf.matmul(output_layer, output_weights, transpose_b=True)
         logits = tf.nn.bias_add(logits, output_bias)
@@ -587,10 +619,10 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
         log_probs = tf.nn.log_softmax(logits, axis=-1)
         attns = extract_attention_weights(tf.get_default_graph())
 
-    one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
+        one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
 
-    per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
-    loss = tf.reduce_mean(per_example_loss)
+        per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
+        loss = tf.reduce_mean(per_example_loss)
 
         return (loss, per_example_loss, logits, probabilities, attns)
 
@@ -614,7 +646,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
-    (total_loss, per_example_loss, logits, probabilities) = create_model(
+    (total_loss, per_example_loss, logits, probabilities, attentions) = create_model(
         bert_config, is_training, input_ids, input_mask, segment_ids, label_ids,
         num_labels, use_one_hot_embeddings)
 
@@ -682,30 +714,30 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
             "eval_loss": loss,
         })
 
-            eval_metrics = (metric_fn, [per_example_loss, label_ids, logits])
-            output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+      eval_metrics = (metric_fn, [per_example_loss, label_ids, logits])
+      output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode,
                 loss=total_loss,
                 eval_metrics=eval_metrics,
                 scaffold_fn=scaffold_fn)
+    else:
+        # attn_processor_fn is None when not called from load_bert_model()
+        attn_processor_fn = params.get('attn_processor_fn', None)
+        if attn_processor_fn:
+            assert callable(attn_processor_fn)
+            preds = {
+                'probabilities': probabilities,
+                'pred_class': tf.argmax(probabilities, axis=1),
+                'attention': attn_processor_fn(attentions)
+            }
         else:
-            # attn_processor_fn is None when not called from load_bert_model()
-            attn_processor_fn = params.get('attn_processor_fn', None)
-            if attn_processor_fn:
-                assert callable(attn_processor_fn)
-                preds = {
-                    'probabilities': probabilities,
-                    'pred_class': tf.argmax(probabilities, axis=1),
-                    'attention': attn_processor_fn(attentions)
-                }
-            else:
-                preds = {
-                    'probabilities': probabilities,
-                    'pred_class': tf.argmax(probabilities, axis=1)
-                }
-            output_spec = tf.contrib.tpu.TPUEstimatorSpec(
-                mode=mode, predictions=preds, scaffold_fn=scaffold_fn)
-        return output_spec
+            preds = {
+                'probabilities': probabilities,
+                'pred_class': tf.argmax(probabilities, axis=1)
+            }
+        output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+            mode=mode, predictions=preds, scaffold_fn=scaffold_fn)
+    return output_spec
 
   return model_fn
 
@@ -783,6 +815,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
 
 
 def main(_):
+
   tf.logging.set_verbosity(tf.logging.INFO)
 
   processors = {
@@ -947,6 +980,173 @@ def main(_):
         out.append(prediction['pred_class'])
         output_line = "\t".join(str(result) for result in out) + "\n"
         writer.write(output_line)
+
+    tf.logging.set_verbosity(tf.logging.INFO)
+
+    processors = {
+        "cola": ColaProcessor,
+        "mnli": MnliProcessor,
+        "mrpc": MrpcProcessor,
+        "xnli": XnliProcessor,
+        "imdb": ImdbProcessor,
+    }
+
+    if not FLAGS.do_train and not FLAGS.do_eval and not FLAGS.do_predict:
+        raise ValueError(
+            "At least one of `do_train`, `do_eval` or `do_predict' must be True.")
+
+    bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
+
+    if FLAGS.max_seq_length > bert_config.max_position_embeddings:
+        raise ValueError(
+            "Cannot use sequence length %d because the BERT model "
+            "was only trained up to sequence length %d" %
+            (FLAGS.max_seq_length, bert_config.max_position_embeddings))
+
+    tf.gfile.MakeDirs(FLAGS.output_dir)
+
+    task_name = FLAGS.task_name.lower()
+
+    if task_name not in processors:
+        raise ValueError("Task not found: %s" % (task_name))
+
+    processor = processors[task_name]()
+
+    label_list = processor.get_labels()
+
+    tokenizer = tokenization.FullTokenizer(
+        vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
+
+    tpu_cluster_resolver = None
+    if FLAGS.use_tpu and FLAGS.tpu_name:
+        tpu_cluster_resolver = tf.contrib.cluster_resolver.TPUClusterResolver(
+            FLAGS.tpu_name, zone=FLAGS.tpu_zone, project=FLAGS.gcp_project)
+
+    is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
+    run_config = tf.contrib.tpu.RunConfig(
+        cluster=tpu_cluster_resolver,
+        master=FLAGS.master,
+        model_dir=FLAGS.output_dir,
+        save_checkpoints_steps=FLAGS.save_checkpoints_steps,
+        tpu_config=tf.contrib.tpu.TPUConfig(
+            iterations_per_loop=FLAGS.iterations_per_loop,
+            num_shards=FLAGS.num_tpu_cores,
+            per_host_input_for_training=is_per_host))
+
+    train_examples = None
+    num_train_steps = None
+    num_warmup_steps = None
+    if FLAGS.do_train:
+        train_examples = processor.get_train_examples(FLAGS.data_dir)
+        num_train_steps = int(
+            len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
+        num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
+
+    model_fn = model_fn_builder(
+        bert_config=bert_config,
+        num_labels=len(label_list),
+        init_checkpoint=FLAGS.init_checkpoint,
+        learning_rate=FLAGS.learning_rate,
+        num_train_steps=num_train_steps,
+        num_warmup_steps=num_warmup_steps,
+        use_tpu=FLAGS.use_tpu,
+        use_one_hot_embeddings=FLAGS.use_tpu)
+
+    # If TPU is not available, this will fall back to normal Estimator on CPU
+    # or GPU.
+    estimator = tf.contrib.tpu.TPUEstimator(
+        use_tpu=FLAGS.use_tpu,
+        model_fn=model_fn,
+        config=run_config,
+        train_batch_size=FLAGS.train_batch_size,
+        eval_batch_size=FLAGS.eval_batch_size,
+        predict_batch_size=FLAGS.predict_batch_size,
+        export_to_tpu=False)
+
+    if FLAGS.do_train:
+        train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
+        file_based_convert_examples_to_features(
+            train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
+        tf.logging.info("***** Running training *****")
+        tf.logging.info("  Num examples = %d", len(train_examples))
+        tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
+        tf.logging.info("  Num steps = %d", num_train_steps)
+        train_input_fn = file_based_input_fn_builder(
+            input_file=train_file,
+            seq_length=FLAGS.max_seq_length,
+            is_training=True,
+            drop_remainder=True)
+        estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
+
+    if FLAGS.do_eval:
+        eval_examples = processor.get_dev_examples(FLAGS.data_dir)
+        eval_file = os.path.join(FLAGS.output_dir, "eval.tf_record")
+        file_based_convert_examples_to_features(
+            eval_examples, label_list, FLAGS.max_seq_length, tokenizer, eval_file)
+
+        tf.logging.info("***** Running evaluation *****")
+        tf.logging.info("  Num examples = %d", len(eval_examples))
+        tf.logging.info("  Batch size = %d", FLAGS.eval_batch_size)
+
+        # This tells the estimator to run through the entire set.
+        eval_steps = None
+        # However, if running eval on the TPU, you will need to specify the
+        # number of steps.
+        if FLAGS.use_tpu:
+            # Eval will be slightly WRONG on the TPU because it will truncate
+            # the last batch.
+            eval_steps = int(len(eval_examples) / FLAGS.eval_batch_size)
+
+        eval_drop_remainder = True if FLAGS.use_tpu else False
+        eval_input_fn = file_based_input_fn_builder(
+            input_file=eval_file,
+            seq_length=FLAGS.max_seq_length,
+            is_training=False,
+            drop_remainder=eval_drop_remainder)
+
+        result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps)
+
+        output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
+        with tf.gfile.GFile(output_eval_file, "w") as writer:
+            tf.logging.info("***** Eval results *****")
+            for key in sorted(result.keys()):
+                tf.logging.info("  %s = %s", key, str(result[key]))
+                writer.write("%s = %s\n" % (key, str(result[key])))
+
+    if FLAGS.do_predict:
+        predict_examples = processor.get_test_examples(FLAGS.data_dir)
+        predict_file = os.path.join(FLAGS.output_dir, "predict.tf_record")
+        file_based_convert_examples_to_features(predict_examples, label_list,
+                                                FLAGS.max_seq_length, tokenizer,
+                                                predict_file)
+
+        tf.logging.info("***** Running prediction*****")
+        tf.logging.info("  Num examples = %d", len(predict_examples))
+        tf.logging.info("  Batch size = %d", FLAGS.predict_batch_size)
+
+        if FLAGS.use_tpu:
+            # Warning: According to tpu_estimator.py Prediction on TPU is an
+            # experimental feature and hence not supported here
+            raise ValueError("Prediction in TPU not supported")
+
+        predict_drop_remainder = True if FLAGS.use_tpu else False
+        predict_input_fn = file_based_input_fn_builder(
+            input_file=predict_file,
+            seq_length=FLAGS.max_seq_length,
+            is_training=False,
+            drop_remainder=predict_drop_remainder)
+
+        result = estimator.predict(input_fn=predict_input_fn)
+
+        output_predict_file = os.path.join(FLAGS.output_dir, "test_results.tsv")
+        with tf.gfile.GFile(output_predict_file, "w") as writer:
+            tf.logging.info("***** Predict results *****")
+            for prediction in result:
+                out = prediction['probabilities'].tolist()
+                out.append(prediction['pred_class'])
+                output_line = "\t".join(str(result) for result in out) + "\n"
+                writer.write(output_line)
+
 
 
 if __name__ == "__main__":
