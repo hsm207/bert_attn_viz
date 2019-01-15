@@ -3,6 +3,7 @@ import tokenization
 from explain.model import load_bert_model
 import tempfile
 import os
+import numpy as np
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 try:
@@ -77,7 +78,7 @@ def average_first_layer_by_head(attentions):
     return norm_cls_attn
 
 
-def viz_attention(tokens, token_weights, target_label, pred_label, pred_probs, review_id):
+def viz_attention(tokens, token_weights, target_label, pred_label, pred_probs, review_id, viz_relative=False):
     """
     Returns a html string with the tokens highlighted according to its weights
     :param tokens: A list of strings
@@ -86,9 +87,11 @@ def viz_attention(tokens, token_weights, target_label, pred_label, pred_probs, r
     :param pred_label: The predicted label
     :param pred_probs: The array of predicted probabilities
     :param review_id: The input's id
+    :param viz_relative: boolean indicating whether to normalize token_weights by dividing it by the max weight
     :return: A html string
     """
     prob_0, prob_1 = pred_probs
+    token_weights = token_weights/np.max(token_weights) if viz_relative else token_weights
 
     top = Element('span')
     top.set('style', 'white-space: pre-wrap;')
