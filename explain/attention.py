@@ -45,7 +45,7 @@ def average_last_layer_by_head(attentions):
     cls_attn = tf.reduce_mean(cls_attn, axis=1)
 
     # Normalize across tokens
-    total_weights = tf.reduce_sum(cls_attn, axis=-1, keep_dims=True)
+    total_weights = tf.reduce_sum(cls_attn, axis=-1, keepdims=True)
     norm_cls_attn = cls_attn / total_weights
 
     return norm_cls_attn
@@ -72,7 +72,7 @@ def average_first_layer_by_head(attentions):
     cls_attn = tf.reduce_mean(cls_attn, axis=1)
 
     # Normalize across tokens
-    total_weights = tf.reduce_sum(cls_attn, axis=-1, keep_dims=True)
+    total_weights = tf.reduce_sum(cls_attn, axis=-1, keepdims=True)
     norm_cls_attn = cls_attn / total_weights
 
     return norm_cls_attn
