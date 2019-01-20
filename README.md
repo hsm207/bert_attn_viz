@@ -2,7 +2,7 @@
 
 This repository is an adaptation of  the [bert](https://github.com/google-research/bert) repository.
 
-The purpose of this repository is to visualize BERT's attention weights after it has been fine-tuned on the [IMDb dateset](http://ai.stanford.edu/~amaas/data/sentiment/). However, it can be extended to any text classification dataset by creating an appropriate DataProcessor class. See [run_classifier.py](run_classifier.py) for details.
+The purpose of this repository is to visualize BERT's self-attention weights after it has been fine-tuned on the [IMDb dateset](http://ai.stanford.edu/~amaas/data/sentiment/). However, it can be extended to any text classification dataset by creating an appropriate DataProcessor class. See [run_classifier.py](run_classifier.py) for details.
 
 # Usage
 
