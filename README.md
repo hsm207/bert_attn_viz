@@ -21,7 +21,17 @@ The purpose of this repository is to visualize BERT's self-attention weights aft
 3. Visualize BERT's weights.
    
    Refer to the [BERT_viz_attention_imdb](/notebooks/BERT_viz_attention_imdb.ipynb) notebook for more details.
-   
+ 
+# How it works
+The forward pass has been modified to return a list of `{layer_i: layer_i_attention_weights}` dictionaries. The shape of 
+ `layer_i_attention_weights` is `(batch_size, num_multihead_attn, max_seq_length, max_seq_length)`.
+ 
+ You can specify a function to process the above list by passing it as a parameter into the `load_bert_model` function
+ in the [explain.model](explain/model.py) module. The function's output is avaialble as part of the result of the Estimator's predict call
+ under the key named 'attention'.
+ 
+ Currently, only two attention processor functions have been defined, namely `average_last_layer_by_head` and  `average_first_layer_by_head`.
+ See [explain.attention](explain/attention.py) for implementation details.       
 # Model Performance Metrics
 
 The fine-tuned model achieved an accuracy of 0.9407 on the test set. 
