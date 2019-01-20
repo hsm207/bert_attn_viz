@@ -14,6 +14,15 @@ def load_bert_model(output_dir,
                     init_checkpoint='./tuned_model/model.ckpt-2461',
                     num_labels=2,
                     attn_processor_fn=None):
+    """
+    Return's a pretrained BERT Estimator object
+    :param output_dir: Directory to save the model's artifacts
+    :param bert_config_file: Path to the model's bert_config.json file
+    :param init_checkpoint: Checkpoint to use to initialize the model's weights
+    :param num_labels: Number of labels that init_checkpoint was finetuned with
+    :param attn_processor_fn:
+    :return:
+    """
     bert_config = modeling.BertConfig.from_json_file(bert_config_file)
     tf.logging.info('Setting output dir to {} ...'.format(output_dir))
     # I don't expect to be running this model on a TPU so whatever...
