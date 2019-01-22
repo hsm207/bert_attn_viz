@@ -353,7 +353,29 @@ class ColaProcessor(DataProcessor):
           InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
     return examples
 
+class CfeProcessor(ColaProcessor):
 
+    def _create_examples(self, lines, set_type):
+        examples = []
+        for (i, line) in enumerate(lines):
+            # skip headers
+            if i == 0:
+                continue
+
+            guid = "%s-%s" % (set_type, line[0])
+            if set_type == 'test':
+                text_a = tokenization.convert_to_unicode(line[3])
+                # for the CFE dataset, we have a legit label even for the test set
+                label = tokenization.convert_to_unicode(line[1])
+            else:
+                text_a = tokenization.convert_to_unicode(line[3])
+                label = tokenization.convert_to_unicode(line[1])
+
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=label)
+            )
+
+        return examples
 
 
 
