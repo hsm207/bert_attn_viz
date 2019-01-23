@@ -3,7 +3,7 @@ import numpy as np
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 try:
-    from run_classifier import file_based_convert_examples_to_features, file_based_input_fn_builder
+    from bert_attn_viz.run_classifier import file_based_convert_examples_to_features, file_based_input_fn_builder
 except tf.flags.DuplicateFlagError:
     pass
 

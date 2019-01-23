@@ -20,7 +20,7 @@ The purpose of this repository is to visualize BERT's self-attention weights aft
 
 3. Visualize BERT's weights.
    
-   Refer to the [BERT_viz_attention_imdb](/notebooks/BERT_viz_attention_imdb.ipynb) notebook for more details.
+   Refer to the [BERT_viz_attention_imdb](/bert_attn_viz/notebooks/BERT_viz_attention_imdb.ipynb) notebook for more details.
  
 # How it works
 The forward pass has been modified to return a list of `{layer_i: layer_i_attention_weights}` dictionaries. The shape of 

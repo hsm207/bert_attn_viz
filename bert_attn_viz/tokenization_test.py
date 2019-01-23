@@ -19,7 +19,7 @@ from __future__ import print_function
 import os
 import tempfile
 
-import tokenization
+from bert_attn_viz import tokenization
 import tensorflow as tf
 
 
