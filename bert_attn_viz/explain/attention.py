@@ -72,6 +72,7 @@ def average_first_layer_by_head(attentions):
 
     return norm_cls_attn
 
+
 def average_layer_i_on_token_j_by_head(layer_index, token_index, attentions):
     """
     General function to average attention weights by heads then across tokens in layer layer_index for token_index
@@ -87,9 +88,10 @@ def average_layer_i_on_token_j_by_head(layer_index, token_index, attentions):
     token_attn = tf.reduce_mean(token_attn, axis=1)
 
     total_weights = tf.reduce_sum(token_attn, axis=-1, keepdims=True)
-    norm_token_attn = token_attn/total_weights
+    norm_token_attn = token_attn / total_weights
 
     return norm_token_attn
+
 
 def viz_attention(tokens, token_weights, target_label, pred_label, pred_probs, review_id, viz_relative=False):
     """
@@ -104,7 +106,7 @@ def viz_attention(tokens, token_weights, target_label, pred_label, pred_probs, r
     :return: A html string
     """
     prob_0, prob_1 = pred_probs
-    token_weights = token_weights/np.max(token_weights) if viz_relative else token_weights
+    token_weights = token_weights / np.max(token_weights) if viz_relative else token_weights
 
     top = Element('span')
     top.set('style', 'white-space: pre-wrap;')
