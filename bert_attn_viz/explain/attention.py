@@ -71,6 +71,24 @@ def average_first_layer_by_head(attentions):
 
     return norm_cls_attn
 
+def average_layer_i_on_token_j_by_head(layer_index, token_index, attentions):
+    """
+    General function to average attention weights by heads then across tokens in layer layer_index for token_index
+    :param layer_index: The layer we want to extract the attention weights from
+    :param token_index: Which token of the layer we want to extract the attention e.g. [CLS], [SEP], etc
+    :param attentions: list of dictionaries of the form
+        {'layer_name': (batch_size, num_multihead_attn, sequence_length, sequence_length)}
+    :return: a tensor of weights
+    """
+    target_attention_layer = attentions[layer_index].values()[0]
+    token_attn = target_attention_layer[:, :, token_index, :]
+
+    token_attn = tf.reduce_mean(token_attn, axis=1)
+
+    total_weights = tf.reduce_sum(token_attn, axis=-1, keepdims=True)
+    norm_token_attn = token_attn/total_weights
+
+    return norm_token_attn
 
 def viz_attention(tokens, token_weights, target_label, pred_label, pred_probs, review_id, viz_relative=False):
     """
