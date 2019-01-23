@@ -1,3 +1,4 @@
+from __future__ import division
 import tensorflow as tf
 import numpy as np
 from xml.etree.ElementTree import Element, SubElement, tostring
