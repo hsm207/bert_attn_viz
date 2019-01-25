@@ -130,3 +130,50 @@ def viz_attention(tokens, token_weights, target_label, pred_label, pred_probs, r
         child.tail = ' '
 
     return tostring(top)
+
+
+def merge_wordpiece_tokens(paired_tokens):
+    """
+    Combine tokens that have been broken up during the wordpiece tokenization process
+    The weights of the merged token is the average of their wordpieces
+    :param paired_tokens: A list of tuples with the form (wordpiece_token, attention_weight)
+    :return: A list of tuples with the form (word_token, attention_weight)
+    """
+    new_paired_tokens = []
+    n_tokens = len(paired_tokens)
+
+    i = 0
+
+    while i < n_tokens:
+        current_token, current_weight = paired_tokens[i]
+        if current_token.startswith('##'):
+            previous_token, previous_weight = new_paired_tokens.pop()
+            merged_token = previous_token
+            merged_weight = [previous_weight]
+            while current_token.startswith('##'):
+                merged_token = merged_token + current_token.replace('##', '')
+                merged_weight.append(current_weight)
+                i = i + 1
+                current_token, current_weight = paired_tokens[i]
+            merged_weight = np.mean(merged_weight)
+            new_paired_tokens.append((merged_token, merged_weight))
+
+        else:
+            new_paired_tokens.append((current_token, current_weight))
+            i = i + 1
+    return new_paired_tokens
+
+
+def ignore_token_weights(paired_tokens, stopwords):
+    """
+    Set attention weights of certain tokens to 0 given a list of stopwords
+    :param paired_tokens: A list of tuple with the form (token, attention_weight)
+    :param stopwords: A list of words whose attention weight we want to set to 0
+    :return: paired_tokens with the some weights set to 0 based on stopwords
+    """
+    new_paired_tokens = []
+    for token, weight in paired_tokens:
+        weight = 0 if token in stopwords else weight
+        new_paired_tokens.append((token, weight))
+
+    return new_paired_tokens
