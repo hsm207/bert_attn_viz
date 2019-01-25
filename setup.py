@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='bert_attn_viz',
-    version='0.0.1',
+    version='0.0.2',
     description="Visualize the self-attention layers in BERT",
     author='Mohd Shukri Hasan',
     author_email='mohdshukri@seekasia.com',
