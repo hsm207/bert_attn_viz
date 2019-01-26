@@ -1,9 +1,9 @@
 import tensorflow as tf
-import modeling
+from bert_attn_viz import modeling
 
 try:
 
-    from run_classifier import model_fn_builder
+    from bert_attn_viz.run_classifier import model_fn_builder
 
 except tf.flags.DuplicateFlagError:
     pass
