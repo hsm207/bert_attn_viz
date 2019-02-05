@@ -10,8 +10,9 @@ def lr_schedule_picker(lr_schedule_type='default', **kwargs):
         lr_schedule = default_learning_rate_schedule(init_lr=kwargs['init_lr'],
                                                      num_train_steps=kwargs['num_train_steps'],
                                                      num_warmup_steps=kwargs['num_warmup_steps'])
-    else:
-        pass
+    elif lr_schedule_type == 'lr_range_test':
+        lr_schedule = lr_range_test(max_learning_rate=kwargs['max_learning_rate'],
+                                    num_train_steps=kwargs['num_train_steps'])
 
     return lr_schedule
 
@@ -53,6 +54,32 @@ def default_learning_rate_schedule(init_lr, num_train_steps, num_warmup_steps):
             is_warmup = tf.cast(global_steps_int < warmup_steps_int, tf.float32)
             learning_rate = (
                     (1.0 - is_warmup) * learning_rate + is_warmup * warmup_learning_rate)
+        return learning_rate
+
+    return lr_scheduler
+
+
+def lr_range_test(max_learning_rate, num_train_steps):
+    """
+    Returns a callable that will return a learning rate schedule that will do a LR range test which is linearly
+    increase the learning rate from 0 to max_learning_rate throughout a training run.
+    See https://arxiv.org/pdf/1803.09820.pdf for details.
+
+    :param max_learning_rate: A float representing the max learning rate to try
+    :param num_train_steps: Number of iterations to run the LR range test
+    :return: A callable that will take the global step and return a tensor representing the appropriately scheduled
+             learning rate
+    """
+
+    def lr_scheduler(global_step):
+        start_lr = tf.constant(0, tf.float32)
+        end_lr = tf.constant(max_learning_rate, tf.float32)
+        lr_increment = (end_lr - start_lr) / (num_train_steps - 1)
+
+        global_step_float = tf.cast(global_step, tf.float32)
+
+        learning_rate = start_lr + global_step_float * lr_increment
+
         return learning_rate
 
     return lr_scheduler
