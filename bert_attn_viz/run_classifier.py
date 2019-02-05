@@ -95,6 +95,9 @@ flags.DEFINE_float(
 flags.DEFINE_integer("save_checkpoints_steps", 1000,
                      "How often to save the model checkpoint.")
 
+flags.DEFINE_integer("save_summary_steps", 100,
+                     "How often to save stuff to tensorboard")
+
 flags.DEFINE_integer("iterations_per_loop", 1000,
                      "How many steps to make in each estimator call.")
 
@@ -124,6 +127,22 @@ flags.DEFINE_integer(
     "num_tpu_cores", 8,
     "Only used if `use_tpu` is True. Total number of TPU cores to use.")
 
+flags.DEFINE_enum(
+    "learning_rate_schedule",
+    "default",
+    ["default", "lr_range_test"],
+    "The learning rate schedule to use. If not specified, use the original linear warmup and decay."
+)
+
+flags.DEFINE_float(
+    "max_learning_rate", 1,
+    "Maximum learning rate to use when using the LR range test or 1cycle learning rate schedule"
+)
+
+flags.DEFINE_float(
+    "min_learning_rate", 0,
+    "Minimum learning rate to use when using the 1cycle learning rate schedule"
+)
 
 class InputExample(object):
     """A single training/test example for simple sequence classification."""
@@ -699,10 +718,11 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
         output_spec = None
         if mode == tf.estimator.ModeKeys.TRAIN:
 
-            lr_func = lr.lr_schedule_picker(lr_schedule_type='defaultx',
+            lr_func = lr.lr_schedule_picker(lr_schedule_type=FLAGS.learning_rate_schedule,
                                             init_lr=learning_rate,
                                             num_train_steps=num_train_steps,
-                                            num_warmup_steps=num_warmup_steps)
+                                            num_warmup_steps=num_warmup_steps,
+                                            max_learning_rate=FLAGS.max_learning_rate)
             train_op = optimization.create_optimizer(
                 total_loss, lr_func,  use_tpu)
 
@@ -886,6 +906,7 @@ def main(_):
         master=FLAGS.master,
         model_dir=FLAGS.output_dir,
         save_checkpoints_steps=FLAGS.save_checkpoints_steps,
+        save_summary_steps=FLAGS.save_summary_steps,
         tpu_config=tf.contrib.tpu.TPUConfig(
             iterations_per_loop=FLAGS.iterations_per_loop,
             num_shards=FLAGS.num_tpu_cores,
@@ -1052,6 +1073,7 @@ def main(_):
             master=FLAGS.master,
             model_dir=FLAGS.output_dir,
             save_checkpoints_steps=FLAGS.save_checkpoints_steps,
+            save_summary_steps=FLAGS.save_summary_steps,
             tpu_config=tf.contrib.tpu.TPUConfig(
                 iterations_per_loop=FLAGS.iterations_per_loop,
                 num_shards=FLAGS.num_tpu_cores,
@@ -1178,4 +1200,5 @@ if __name__ == "__main__":
     flags.mark_flag_as_required("vocab_file")
     flags.mark_flag_as_required("bert_config_file")
     flags.mark_flag_as_required("output_dir")
+    flags.mark_flag_as_required("learning_rate_schedule")
     tf.app.run()
