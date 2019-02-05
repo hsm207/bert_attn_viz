@@ -25,6 +25,8 @@ from bert_attn_viz import modeling, tokenization, optimization
 import tensorflow as tf
 import random
 
+import bert_attn_viz.learning_rate as lr
+
 flags = tf.flags
 
 FLAGS = flags.FLAGS
@@ -697,8 +699,12 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
         output_spec = None
         if mode == tf.estimator.ModeKeys.TRAIN:
 
+            lr_func = lr.lr_schedule_picker(lr_schedule_type='defaultx',
+                                            init_lr=learning_rate,
+                                            num_train_steps=num_train_steps,
+                                            num_warmup_steps=num_warmup_steps)
             train_op = optimization.create_optimizer(
-                total_loss, learning_rate, num_train_steps, num_warmup_steps, use_tpu)
+                total_loss, lr_func,  use_tpu)
 
             output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode,
