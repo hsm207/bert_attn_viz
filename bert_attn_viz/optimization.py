@@ -26,6 +26,7 @@ def create_optimizer(loss, learning_rate_fn, use_tpu):
   """Creates an optimizer training op."""
   global_step = tf.train.get_or_create_global_step()
   learning_rate = learning_rate_fn(global_step)
+  tf.summary.scalar('final_learning_rate', learning_rate)
 
   # It is recommended that you use this optimizer for fine tuning, since this
   # is how the model was trained (note that the Adam m/v variables are NOT
