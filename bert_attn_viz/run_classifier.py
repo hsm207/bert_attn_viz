@@ -22,6 +22,7 @@ import collections
 import csv
 import os
 from bert_attn_viz import modeling, tokenization, optimization
+import bert_attn_viz.classifier_heads as clf
 import tensorflow as tf
 import random
 
@@ -121,6 +122,12 @@ tf.flags.DEFINE_string("master", None, "[Optional] TensorFlow master URL.")
 flags.DEFINE_integer(
     "num_tpu_cores", 8,
     "Only used if `use_tpu` is True. Total number of TPU cores to use.")
+
+flags.DEFINE_enum(
+    "classifier_head_config", None,
+    ["default", "global_max_pool", "global_average_pool", "ssan"],
+    "The classifier's architecture we want to use perform classification"
+)
 
 
 class InputExample(object):
@@ -617,7 +624,20 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     #
     # If you want to use the token-level output, use model.get_sequence_output()
     # instead.
-    output_layer = model.get_pooled_output()
+    if FLAGS.classifier_head_config == "default":
+        output_layer = model.get_pooled_output()
+    else:
+        output_layer = model.get_sequence_output()
+        output_layer = clf.custom_pooler(pooler_type=FLAGS.classifier_head_config,
+                                         sequence_outputs=output_layer,
+                                         input_mask = input_mask,
+                                         max_seq_length=input_ids.get_shape().as_list()[-1],
+                                         embedding_dim=bert_config.hidden_size,
+                                         stdev=bert_config.initializer_range,
+                                         is_training=is_training,
+                                         keep_dropout_rate=0.70,
+                                         input_ids=input_ids,
+                                         max_relative_position=10)
 
     hidden_size = output_layer.shape[-1].value
 
@@ -840,7 +860,8 @@ def main(_):
         "cola": ColaProcessor,
         "mnli": MnliProcessor,
         "mrpc": MrpcProcessor,
-        "xnli": XnliProcessor
+        "xnli": XnliProcessor,
+        "imdb": ImdbProcessor
     }
 
     if not FLAGS.do_train and not FLAGS.do_eval and not FLAGS.do_predict:
@@ -1172,4 +1193,5 @@ if __name__ == "__main__":
     flags.mark_flag_as_required("vocab_file")
     flags.mark_flag_as_required("bert_config_file")
     flags.mark_flag_as_required("output_dir")
+    flags.mark_flag_as_required("classifier_head_config")
     tf.app.run()
